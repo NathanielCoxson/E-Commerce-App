@@ -10,6 +10,7 @@ const port = 3000;
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// Setup session here, including settings.
 app.use(session({
         secret: "f4z4gs$Gcg",
         cookie: {maxAge: 300000000, secure: true},
@@ -21,9 +22,14 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Serialize user here and included any user
+// information to identify that user.
 passport.serializeUser((user, done) => {
     done(null, user.id);
 });
+// Deserialize user here and provide the
+// same user identificaiton that was used
+// to serialize the user.
 passport.deserializeUser((id, done) => {
     return done(null, id);
 });
