@@ -94,6 +94,7 @@ const loginUser = (req, res) => {
  * @param {Object} res 
  */
 const getUsers = (req, res) => {
+    logRequest('GET', '/users');
     pool.query('SELECT * FROM users', (error, result) => {
         if (error) {
             console.log(error);
@@ -112,6 +113,7 @@ const getUsers = (req, res) => {
  * @param {Object} res 
  */
 const getUserByUsername = (req, res) => {
+    logRequest('GET', '/users/:username');
     pool.query('SELECT * FROM users WHERE username = $1', [req.params.username], (error, result) => {
         if (error) {
             console.log(error);
@@ -130,6 +132,7 @@ const getUserByUsername = (req, res) => {
  * @param {Object} res 
  */
 const updateUserByUsername = (req, res) => {
+    logRequest('PUT', '/users/:username');
     const update = req.body;
     // NOTE: NEED TO CHANGE TO A CHAIN OF OPTIONAL QUERIES 
     // SO THAT VALUES ALREADY IN DB ARE NOT SET TO NULL
@@ -167,6 +170,7 @@ const updateUserByUsername = (req, res) => {
  * @param {Object} res 
  */
 const deleteUserByUsername = (req, res) => {
+    logRequest('DELETE', '/users/:username');
     pool.query('DELETE FROM users WHERE username = $1', [req.params.username], (error, result) => {
         if (error) {
             console.log(error);
