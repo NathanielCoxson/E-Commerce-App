@@ -39,6 +39,8 @@ passport.use(new LocalStrategy(db.verify));
 app.get('/', (req, res) => {
     res.send('Hello World');
 });
+
+// login and registration
 app.post('/register', db.registerUser);
 app.post('/login', 
     passport.authenticate('local', {failureRedirect: '/', failureMessage: true}),
@@ -48,6 +50,7 @@ app.post('/login',
 // /users
 app.get('/users/:username', db.getUserByUsername);
 app.get('/users', db.getUsers);
+
 app.put('/users/:username', db.updateUserByUsername);
 app.delete('/users/:username', db.deleteUserByUsername);
 

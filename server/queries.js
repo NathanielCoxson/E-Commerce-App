@@ -9,6 +9,14 @@ const pool = new Pool({
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
 
+/**
+ * Logs a common response when a request is made to the server.
+ * @param {string} type 
+ * @param {string} endpoint 
+ * @returns 
+ */
+const logRequest = (type, endpoint) => console.log(`${type} ${endpoint}`);
+
 // Endpoint functions
 /**
  * Accepts a username and password from the client as a
@@ -18,6 +26,7 @@ const saltRounds = 10;
  * @param {Object} res Express response object
  */
 const registerUser = (req, res) => {
+    logRequest('POST', '/register');
     let username = req.body.username;
     pool.query('SELECT * FROM users WHERE username = $1', [username], (error, result) => {
         if (error) {
@@ -85,7 +94,6 @@ const loginUser = (req, res) => {
  * @param {Object} res 
  */
 const getUsers = (req, res) => {
-    console.log('Hello');
     pool.query('SELECT * FROM users', (error, result) => {
         if (error) {
             console.log(error);
@@ -110,7 +118,7 @@ const getUserByUsername = (req, res) => {
             res.status(500).send();
         }
         else {
-            res.status(200).send(result.rows[0]);
+            res.status(200).json(result.rows[0]);
         }
     });
 }
@@ -149,7 +157,7 @@ const updateUserByUsername = (req, res) => {
                 res.status(200).send();
             }
         }
-    )
+    );
 }
 
 /**
@@ -231,24 +239,10 @@ function verify(username, password, cb) {
     });
 }
 
-// Returns user object from the DB given a specific ID.
-const findUserById = id => {
-    pool.query('SELECT * FROM users WHERE id = $1', [id], (error, result) => {
-        if (error) {
-            throw error;
-        }
-        if (result.rowCount === 0) {
-            return {};
-        }
-        return result.rows[0];
-    })
-}
-
 module.exports = {
     registerUser,
     loginUser,
     verify,
-    findUserById,
     getUsers,
     getUserByUsername,
     updateUserByUsername,
