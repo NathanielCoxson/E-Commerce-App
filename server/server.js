@@ -54,6 +54,9 @@ app.get('/users', db.getUsers);
 app.put('/users/:username', db.updateUserByUsername);
 app.delete('/users/:username', db.deleteUserByUsername);
 
+// /orders
+app.get('/orders/:username', db.getOrders);
+
 
 
 app.listen(port, () => {

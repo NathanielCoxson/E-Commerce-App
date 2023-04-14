@@ -26,7 +26,7 @@ const logRequest = (type, endpoint) => console.log(`${type} ${endpoint}`);
  * @param {Object} res Express response object
  */
 const registerUser = (req, res) => {
-    logRequest('POST', '/register');
+    // logRequest('POST', '/register');
     let username = req.body.username;
     pool.query('SELECT * FROM users WHERE username = $1', [username], (error, result) => {
         if (error) {
@@ -94,7 +94,7 @@ const loginUser = (req, res) => {
  * @param {Object} res 
  */
 const getUsers = (req, res) => {
-    logRequest('GET', '/users');
+    // logRequest('GET', '/users');
     pool.query('SELECT * FROM users', (error, result) => {
         if (error) {
             console.log(error);
@@ -113,7 +113,7 @@ const getUsers = (req, res) => {
  * @param {Object} res 
  */
 const getUserByUsername = (req, res) => {
-    logRequest('GET', '/users/:username');
+    // logRequest('GET', '/users/:username');
     pool.query('SELECT * FROM users WHERE username = $1', [req.params.username], (error, result) => {
         if (error) {
             console.log(error);
@@ -131,36 +131,79 @@ const getUserByUsername = (req, res) => {
  * @param {Object} req 
  * @param {Object} res 
  */
-const updateUserByUsername = (req, res) => {
-    logRequest('PUT', '/users/:username');
-    const update = req.body;
-    // NOTE: NEED TO CHANGE TO A CHAIN OF OPTIONAL QUERIES 
-    // SO THAT VALUES ALREADY IN DB ARE NOT SET TO NULL
-    // WHEN THEY ARE NOT PROVIDED, OR CHANGE TO MULTIPLE FUNCTIONS.
-    pool.query(
-        'UPDATE users \
-        SET username = $1, fname = $2, lname = $3, email = $4 \
-        WHERE username = $5',
-        [
-            update.username || req.params.username,
-            update.fname || null,
-            update.lname || null,
-            update.email || null,
-            req.params.username
-        ],
-        (error, result) => {
-            if (error) {
-                console.log(error);
-                res.status(500).send();
-            }
-            else if (result.rowCount === 0) {
-                res.status(400).send('Invalid update.')
-            }
-            else {
-                res.status(200).send();
-            }
+const updateUserByUsername = async (req, res) => {
+    // logRequest('PUT', '/users/:username');
+    const body = req.body;
+    const maxFname = 50;
+    const maxLname = 50;
+    const maxEmail = 200;
+    const maxUsername = 20;
+
+    // Check request
+    let badRequest = false;
+    if (body.fname && body.fname.length > maxFname) {
+        badRequest = true;
+    }
+    if (body.lname && body.lname.length > maxLname) {
+        badRequest = true;
+    }
+    if (body.email && body.email.length > maxEmail) {
+        badRequest = true;
+    }
+    if (body.username && body.username.length > maxUsername) {
+        badRequest = true;
+    }
+    if (badRequest) {
+        res.status(400).send();
+        return;
+    }
+
+    const client = await pool.connect();
+    let success = true;
+    try {
+        await client.query('BEGIN');
+        let queryText = 'SELECT username, fname, lname, email FROM users WHERE username = $1';
+        const result = await client.query(queryText, [req.params.username]);
+        if (result.rowCount === 0) {
+            success = false;
+            // Not Found
+            res.status(404).send();
         }
-    );
+        else {
+            let update = result.rows[0];
+            update.fname = body.fname ? body.fname : update.fname;
+            update.lname = body.lname ? body.lname : update.lname;
+            update.email = body.email ? body.email : update.email;
+            update.username = body.username ? body.username : update.username;
+            let queryText = "\
+                UPDATE users\
+                SET fname = $1, \
+                    lname = $2, \
+                    email = $3, \
+                    username = $4 \
+                WHERE username = $5";
+            await client.query(queryText, [
+                update.fname, 
+                update.lname, 
+                update.email, 
+                update.username, 
+                req.params.username
+            ]);
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.log(error);
+        success = false;
+        // Server error
+        res.status(500).send();
+    } finally {
+        client.release();
+    }
+    if (success) {
+        // Success
+        res.status(200).send();
+    }
 }
 
 /**
@@ -170,11 +213,11 @@ const updateUserByUsername = (req, res) => {
  * @param {Object} res 
  */
 const deleteUserByUsername = (req, res) => {
-    logRequest('DELETE', '/users/:username');
+    // logRequest('DELETE', '/users/:username');
     pool.query('DELETE FROM users WHERE username = $1', [req.params.username], (error, result) => {
         if (error) {
             console.log(error);
-            res.status(500).send('Server Error.');
+            res.status(500).send('Server Error');
         }
         else if (result.rowCount === 0) {
             res.status(404).send('User not found.');
@@ -213,7 +256,29 @@ const deleteUserByUsername = (req, res) => {
         updating shipping address before order is shipped, updating
         contact info for the order, etc.
 */
-
+const getOrders = (req, res) => {
+    // logRequest('GET', '/orders/:username');
+    pool.query(
+        'SELECT orders.date_placed \
+         FROM orders, users \
+         WHERE \
+            orders.user_id = users.id AND \
+            users.username = $1',
+        [req.params.username],
+        (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status(500).send('Server Error')
+            }
+            else if (result.rowCount === 0) {
+                res.status(404).send('No orders found.');
+            }
+            else if (result.rowCount > 0) {
+                res.status(200).send(result.rows);
+            }
+        }
+    )
+}
 
 
 // Helper functions
@@ -251,4 +316,5 @@ module.exports = {
     getUserByUsername,
     updateUserByUsername,
     deleteUserByUsername,
+    getOrders,
 }
