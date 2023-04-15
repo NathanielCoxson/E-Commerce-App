@@ -88,7 +88,7 @@ const loginUser = (req, res) => {
 */
 
 /**
- * /users
+ * GET /users
  * Returns all users from the database as an array of objects.
  * @param {Object} req 
  * @param {Object} res 
@@ -107,7 +107,7 @@ const getUsers = (req, res) => {
 }
 
 /**
- * /users/:username
+ * GET /users/:username
  * Returns the user with the given id from the database as an object.
  * @param {Object} req 
  * @param {Object} res 
@@ -126,7 +126,7 @@ const getUserByUsername = (req, res) => {
 }
 
 /**
- * /users/:username
+ * PUT /users/:username
  * Updates a user's account information given their username.
  * @param {Object} req 
  * @param {Object} res 
@@ -207,7 +207,7 @@ const updateUserByUsername = async (req, res) => {
 }
 
 /**
- * /users/:username
+ * DELETE /users/:username
  * Deletes the user with the given ID.
  * @param {Object} req 
  * @param {Object} res 
@@ -239,6 +239,139 @@ const deleteUserByUsername = (req, res) => {
     POST
         Could change existing item, such as quantity
 */
+/**
+ * POST /carts/:username
+ * Adds a new item to a user's cart.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const addToCart = (req, res) => {
+    const { product_id, quantity } = req.body;
+    // Check for a bad request
+    if (
+        !product_id || 
+        product_id < 0 ||
+        !quantity || 
+        quantity < 0 ||
+
+        !Number.isInteger(product_id) || 
+        !Number.isInteger(quantity)
+    ) {
+        res.status(400).send();
+        return;
+    }
+    const queryText = 'INSERT INTO cart_items VALUES($1, $2, $3)';
+    pool.query(queryText, [req.params.username, product_id, quantity], (error, result) => {
+        if (error) {
+            if (error.detail.includes('already exists')) {
+                res.status(409).send();
+                return;
+            }
+            else {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }  
+        }
+        res.status(201).send();
+    });
+}
+
+/**
+ * GET /carts/:username
+ * Sends back a list of items in a user's cart.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const getCart = (req, res) => {
+    const username = req.params.username;
+    const queryText = "\
+    SELECT \
+        products.name,\
+        products.description,\
+        cart_items.quantity,\
+        products.price,\
+        products.price * cart_items.quantity AS total_price\
+    FROM cart_items, products\
+    WHERE cart_items.product_id = products.id AND cart_items.username = $1";
+    pool.query(queryText, [username], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rows.length === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send(result.rows);
+    });
+}
+
+/**
+ * PUT /carts/:username
+ * Updates the quantity of an item in a user's cart.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns 
+ */
+const updateCart = (req, res) => {
+    const username = req.params.username;
+    const { product_id, new_quantity } = req.body;
+    // Check request
+    if (
+        !product_id ||
+        !new_quantity ||
+        !Number.isInteger(product_id) || 
+        !Number.isInteger(new_quantity) ||
+        new_quantity < 0 ||
+        product_id < 0
+    ) {
+      res.status(400).send();
+      return;  
+    }
+    const queryText = "\
+    UPDATE cart_items\
+    SET quantity = $1\
+    WHERE product_id = $2 AND username = $3";
+    pool.query(queryText, [new_quantity, product_id, username], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rowCount === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send();
+    });
+}
+
+/**
+ * DELETE /carts/:username
+ * Deletes an item from a user's cart with a given id.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const deleteCartItem = (req, res) => {
+    const username = req.params.username;
+    const { product_id } = req.body;
+    const queryText = "DELETE FROM cart_items WHERE username = $1 AND product_id = $2";
+    pool.query(queryText, [username, product_id], (error, result) =>{
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rowCount === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(204).send();
+    });
+}
 
 /*
 /orders endpoints
@@ -317,4 +450,8 @@ module.exports = {
     updateUserByUsername,
     deleteUserByUsername,
     getOrders,
+    addToCart,
+    getCart,
+    updateCart,
+    deleteCartItem
 }

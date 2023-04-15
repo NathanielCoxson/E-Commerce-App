@@ -2,12 +2,13 @@ const db = require('./queries');
 const request = require("supertest");
 baseURL = 'http://localhost:3000';
 
-describe('POST /register', () => {
-    const user = {
-        username: 'Test',
-        password: 'password',
-    }
+const user = {
+    username: 'Test',
+    password: 'password',
+}
 
+// Users
+describe('POST /register', () => {
     it('should return 201', async () => {
         const response = await request(baseURL).post('/register').send(user);
         await request(baseURL).delete(`/users/${user.username}`).send(user);
@@ -22,10 +23,6 @@ describe('POST /register', () => {
 });
 
 describe('GET /users', () => {
-    const user = {
-        username: 'Test',
-        password: 'password',
-    }
     beforeAll(async () => {
         await request(baseURL).post('/register').send(user);
     });
@@ -46,10 +43,6 @@ describe('GET /users', () => {
 });
 
 describe('PUT /users', () => {
-    const user = {
-        username: 'Test',
-        password: 'password',
-    }
     const fullUpdate = {
         username: 'update',
         fname: 'TestFirstName',
@@ -107,15 +100,39 @@ describe('PUT /users', () => {
     });
 });
 
-describe("DELETE /users", () => {
-    const user = {
-        username: 'Test',
-        password: 'password',
-    }
-    
+describe('DELETE /users', () => {
     it('should return 204', async () => {
         await request(baseURL).post('/register').send(user);
         const response = await request(baseURL).delete(`/users/${user.username}`);
         expect(response.statusCode).toBe(204);
+    });
+});
+
+// Carts
+describe('POST /carts', () => {
+    const item = {
+        product_id: 1,
+        quantity: 1
+    }
+    beforeAll(async () => {
+        await request(baseURL).post('/register').send(user);
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/users/${user.username}`);
+    });
+
+    it('should add an item to a user\'s cart', async () => {
+        let response = await request(baseURL).post(`/carts/${user.username}`).send(item);
+        expect(response.statusCode).toBe(201);
+        response = await request(baseURL).get(`/carts/${user.username}`);
+        expect(response.body.length >= 1).toBe(true);
+        expect(response.body[0].product_id).toBe(1);
+        expect(response.body[0].quantity).toBe(1);
+    });
+    it('should return 400 for a bad request', async () => {
+
+    });
+    it('should return 409 if the item already exists', async () => {
+
     });
 });

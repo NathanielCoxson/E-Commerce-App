@@ -57,6 +57,12 @@ app.delete('/users/:username', db.deleteUserByUsername);
 // /orders
 app.get('/orders/:username', db.getOrders);
 
+// /carts
+app.post('/carts/:username', db.addToCart);
+app.get('/carts/:username', db.getCart);
+app.put('/carts/:username', db.updateCart);
+app.delete('/carts/:username', db.deleteCartItem);
+
 
 
 app.listen(port, () => {
