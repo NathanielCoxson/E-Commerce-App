@@ -125,14 +125,104 @@ describe('POST /carts', () => {
         let response = await request(baseURL).post(`/carts/${user.username}`).send(item);
         expect(response.statusCode).toBe(201);
         response = await request(baseURL).get(`/carts/${user.username}`);
+        await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
         expect(response.body.length >= 1).toBe(true);
-        expect(response.body[0].product_id).toBe(1);
+        expect(response.body[0].name).toBe('Book');
         expect(response.body[0].quantity).toBe(1);
+        
     });
     it('should return 400 for a bad request', async () => {
-
+        const response = await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: -1,
+        });
+        expect(response.statusCode).toBe(400);
     });
     it('should return 409 if the item already exists', async () => {
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        const response = await request(baseURL).post(`/carts/${user.username}`).send(item);
+        await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
+        expect(response.statusCode).toBe(409);
+    });
+});
 
+describe('GET /carts', () => {
+    const item = {
+        product_id: 1,
+        quantity: 1
+    }
+    beforeAll(async () => {
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
+        await request(baseURL).delete(`/users/${user.username}`);
+    });
+
+    it('should return 200', async () => {
+        const response = await request(baseURL).get(`/carts/${user.username}`);
+        expect(response.statusCode).toBe(200);
+    });
+    it('should return 404 for a missing cart', async () => {
+        const response = await request(baseURL).get('/carts/Test1');
+        expect(response.statusCode).toBe(404);
+    });
+});
+
+describe('PUT /carts', () => {
+    const item = {
+        product_id: 1,
+        quantity: 1
+    }
+    beforeAll(async () => {
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
+        await request(baseURL).delete(`/users/${user.username}`);
+    });
+
+    it('should return 200', async () => {
+        const response = await request(baseURL).put(`/carts/${user.username}`).send({product_id: item.product_id, new_quantity: 5});
+        expect(response.statusCode).toBe(200);
+    });
+    it('should update an item\'s quanity', async () => {
+        await request(baseURL).put(`/carts/${user.username}`).send({product_id: item.product_id, new_quantity: 5});
+        const response = await request(baseURL).get(`/carts/${user.username}`);
+        expect(response.body[0].quantity).toBe(5);
+    });
+    it('should return 400 for a bad request', async () => {
+        const response = await request(baseURL).put(`/carts/${user.username}`).send({product_id: -1});
+        expect(response.statusCode).toBe(400);
+    });
+    it('should return 404 for a missing item', async () => {
+        const response = await request(baseURL).put(`/carts/${user.username}`).send({product_id: 2, new_quantity: 2});
+        expect(response.statusCode).toBe(404);
+    });
+});
+
+describe('DELETE /carts', () => {
+    const item = {
+        product_id: 1,
+        quantity: 1
+    }
+    beforeAll(async () => {
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
+        await request(baseURL).delete(`/users/${user.username}`);
+    });
+
+    it('should return 204', async () => {
+        const response = await request(baseURL).delete(`/carts/${user.username}`).send({product_id: item.product_id});
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        expect(response.statusCode).toBe(204);
+    });
+    it('should return 404 for a missing item', async () => {
+        const response = await request(baseURL).delete(`/carts/${user.username}`).send({product_id: 2});
+        expect(response.statusCode).toBe(404);
     });
 });

@@ -254,7 +254,6 @@ const addToCart = (req, res) => {
         product_id < 0 ||
         !quantity || 
         quantity < 0 ||
-
         !Number.isInteger(product_id) || 
         !Number.isInteger(quantity)
     ) {
