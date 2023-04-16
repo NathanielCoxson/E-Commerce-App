@@ -593,26 +593,19 @@ const deleteCartItem = (req, res) => {
  */
 const getOrders = (req, res) => {
     // logRequest('GET', '/orders/:username');
-    pool.query(
-        'SELECT orders.date_placed \
-         FROM orders, users \
-         WHERE \
-            orders.user_id = users.id AND \
-            users.username = $1',
-        [req.params.username],
-        (error, result) => {
-            if (error) {
-                console.log(error);
-                res.status(500).send('Server Error')
-            }
-            else if (result.rowCount === 0) {
-                res.status(404).send('No orders found.');
-            }
-            else if (result.rowCount > 0) {
-                res.status(200).send(result.rows);
-            }
+    const queryText = "SELECT * FROM orders";
+    pool.query(queryText, (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
         }
-    )
+        if (result.rows.length === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send(result.rows);
+    });
 };
 
 /**
@@ -623,7 +616,20 @@ const getOrders = (req, res) => {
  * @param {Object} res 
  */
 const getUserOrders = (req, res) => {
-
+    const queryText = "SELECT * FROM orders WHERE user_username = $1";
+    const username = req.params.username;
+    pool.query(queryText, [username], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rows.length === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send(result.rows);
+    });
 };
 
 /**
@@ -637,21 +643,74 @@ const getUserOrders = (req, res) => {
  * @param {Object} res 
  */
 const getOrder = (req, res) => {
-
+    const username = req.params.username;
+    const id = req.params.id;
+    const queryText = "SELECT * FROM orders WHERE id = $1 AND user_username = $2";
+    pool.query(queryText, [id, username], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rows.length === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send(result.rows[0]);
+    });
 };
 
 /**
  * POST /orders/:username
  * Adds a new order to the database for the given username.
  * The order is created based on the current contents of the 
- * associated user's cart. 
+ * associated user's cart. The id of the new order is returned
+ * as id in the body.
  * @param {Object} req 
  * @param {Object} res 
  */
-const addOrder = (req, res) => {
+const addOrder = async (req, res) => {
+    const client = pool.connect();
+    const username = req.params.username;
+    try {
+        await client.query('BEGIN');
+        let queryText = 'SELECT * FROM cart_items WHERE username = $1';
+        let response = await client.query(queryText, [username]);
+        let cart_items = response.body;
+        console.log(cart_items);
+        
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.log(error);
+        res.status(500).send();
+        return;
+    } finally {
+        await client.release();
+    }
+}
+
+/**
+ * PUT /orders/:username
+ * Updates a given user's order.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const updateOrder = (req, res) => {
 
 }
 
+/**
+ * DELETE /orders/:username
+ * Deletes one or all of a user's orders
+ * depending on whether or no the deleteAll
+ * option is set to true.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const deleteOrder = (req, res) => {
+
+}
 
 // Helper functions
 /*

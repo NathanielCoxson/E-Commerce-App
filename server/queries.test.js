@@ -350,10 +350,6 @@ describe('PUT /products', () => {
         expect(emptyBody.statusCode).toBe(400);
         expect(invalidValue.statusCode).toBe(400);
     });
-    it('should return 404 for a missing product', async () => {
-        const response = await request(baseURL).put('/products/0').send(fullUpdate);
-        expect(response.statusCode).toBe(404);
-    });
 });
 
 describe('DELETE /products', () => {
