@@ -226,3 +226,122 @@ describe('DELETE /carts', () => {
         expect(response.statusCode).toBe(404);
     });
 });
+
+// Products
+describe('GET /products', () => {
+    const product = {
+        name: 'Test Product',
+        price: 4.99,
+        description: 'Sample description of a product.'
+    };
+    let id = null;
+    
+    beforeAll(async () => {
+        const response = await request(baseURL).post('/products').send(product);
+        id = response.body.id;
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${id}`);
+    });
+
+    it('should return 200', async () => {
+        const response = await request(baseURL).get(`/products/${id}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.body.name).toBe(product.name);
+        expect(response.body.price).toBe(product.price);
+        expect(response.body.description).toBe(product.description);
+    });
+    it('should return 404 for a missing product', async () => {
+        await request(baseURL).delete(`/products/${id}`);
+        const response1 = await request(baseURL).get(`/products/${id}`);
+        const response2 = await request(baseURL).post('/products').send(product);
+        id = response2.body.id;
+        expect(response1.statusCode).toBe(404);
+    });
+});
+
+describe('POST /products', () => {
+    const product = {
+        name: 'Test Product',
+        price: 4.99,
+        description: 'Sample description of a product.'
+    };
+
+    it('should return 201', async () => {
+        const response = await request(baseURL).post('/products').send(product);
+        await request(baseURL).delete(`/products/${response.body.id}`);
+        expect(response.statusCode).toBe(201);
+    });
+    it('should return the new product\'s id', async () => {
+        const response = await request(baseURL).post('/products').send(product);
+        const id = response.body.id;
+        await request(baseURL).delete(`/products/${id}`);
+        expect(id).toBeDefined;
+    });
+    it('should create a new product in the database', async () => {
+        let response = await request(baseURL).post('/products').send(product);
+        const id = response.body.id;
+        response = await request(baseURL).get(`/products/${id}`);
+        await request(baseURL).delete(`/products/${id}`);
+        expect(response.body.name).toBe(product.name);
+        expect(response.body.price).toBe(product.price);
+        expect(response.body.description).toBe(product.description);
+    });
+});
+
+describe('PUT /products', () => {
+    const product = {
+        name: 'Test Product',
+        price: 4.99,
+        description: 'Sample description of a product.'
+    };
+    const partialUpdate = {
+        price: 3.99
+    };
+    const fullUpdate = {
+        name: 'Test Product Updated',
+        price: 2.99,
+        description: 'Sample description of a product, updated.'
+    };
+    let id = null;
+
+    beforeAll(async () => {
+        const response = await request(baseURL).post('/products').send(product);
+        id = response.body.id;
+    }); 
+    beforeEach(async () => {
+        await request(baseURL).put(`/products/${id}`).send(product);
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${id}`);
+    });
+
+    it('should return 200 and correctly update a product for a full update', async () => {
+        const response = await request(baseURL).put(`/products/${id}`).send(fullUpdate);
+        const updatedProduct = await request(baseURL).get(`/products/${id}`);
+        expect(response.statusCode).toBe(200);
+        expect(updatedProduct.body.name).toBe(fullUpdate.name);
+        expect(updatedProduct.body.price).toBe(fullUpdate.price);
+        expect(updatedProduct.body.description).toBe(fullUpdate.description);
+    });
+    it('should return 200 and correctly update a product for a partial update', async () => {
+        const response = await request(baseURL).put(`/products/${id}`).send(partialUpdate);
+        const updatedProduct = await request(baseURL).get(`/products/${id}`);
+        expect(response.statusCode).toBe(200);
+        expect(updatedProduct.body.name).toBe(product.name);
+        expect(updatedProduct.body.price).toBe(partialUpdate.price);
+        expect(updatedProduct.body.description).toBe(product.description);
+    });
+    it('should return 400 for a bad request', async () => {
+        const emptyBody = await request(baseURL).put(`/products/${id}`).send({});
+        const invalidValue = await request(baseURL).put(`/products/${id}`).send({
+            price: 0
+        });
+        expect(emptyBody.statusCode).toBe(400);
+        expect(invalidValue.statusCode).toBe(400);
+    });
+    it('should return 404 for a missing product', async () => {
+        const response = await request(baseURL).put('/products/0').send(fullUpdate);
+        expect(response.statusCode).toBe(404);
+    });
+});

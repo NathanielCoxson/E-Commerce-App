@@ -7,6 +7,7 @@ const pool = new Pool({
     port: 5432
 });
 const bcrypt = require('bcrypt');
+const { query } = require('express');
 const saltRounds = 10;
 
 /**
@@ -64,9 +65,188 @@ const loginUser = (req, res) => {
     May want to allow single, multiple, or all products to be retrived, 
     which may require some limit.
     GET
-    Should allow user to view a product and its information
-    
+        Sends back an item's information.
+    POST
+        Adds an item to the database.
+    PUT
+        Updates an existing item.
+    DELETE
+        Deletes an item from the database.
 */
+/**
+ * POST /products
+ * Adds a new product to the database.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const addProduct = (req, res) => {
+    const { price, name, description } = req.body;
+
+    /*
+    Request Conditions:
+        price is an float,
+        name and description are strings
+        price is > 0,
+        all fields are present
+    */
+    const conditions = [
+        price ? true : false, 
+        name ? true : false, 
+        description ? true : false,
+        typeof(price) === 'number',
+        typeof(name) === 'string',
+        typeof(description) === 'string',
+        price > 0
+    ]
+    if (conditions.every(cond => cond === true)) {
+        const queryText = "INSERT INTO products VALUES(DEFAULT, $1, $2, $3) RETURNING id";
+        pool.query(queryText, [price, name, description], (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status.send(500);
+                return;
+            }
+            res.status(201).send(result.rows[0]);
+        });
+    }
+    else {
+        res.status(400).send();
+        return;
+    }
+};
+
+/**
+ * GET /products/:id
+ * Sends back the product with the given id.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const getProduct = (req, res) => {
+    const id = req.params.id;
+    const queryText = "SELECT name, price, description FROM products WHERE id = $1";
+    pool.query(queryText, [id], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rowCount === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(200).send(result.rows[0]);
+    });
+};
+
+/**
+ * GET /products
+ * Sends back all of the products in the databse.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const getProducts = (req, res) => {
+    // Consider limiting the number of returned objects
+    // in the case that the table becomes very large.
+    const queryText = "SELECT name, price, description FROM products";
+    pool.query(queryText, (error, result) => {
+        if (error) {
+            res.status(500).send();
+            return;
+        }
+        res.status(200).send(result.rows);
+    });
+};
+
+/**
+ * PUT /products/:id
+ * Updates the product with the given id.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const updateProduct = async (req, res) => {
+    const { price, name, description } = req.body;
+
+    /*
+        Request Conditions:
+            At least one field must be provided
+            price > 0 and is a number
+            name and description are strings
+    */
+    conditions = [
+        typeof(name) !== 'undefined' ||
+        typeof(price) !== 'undefined' ||
+        typeof(description) !== 'undefined',
+        typeof(price) !== 'undefined' ? typeof(price) === 'number' && price > 0 : true,
+        name ? typeof(name) === 'string' : true,
+        typeof(description) !== 'undefined' ? typeof(description) === 'string' : true
+    ];
+    if (conditions.every(cond => cond === true)) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            let queryText = 'SELECT price, name, description FROM products WHERE id = $1';
+            const result = await client.query(queryText, [req.params.id]);
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            let update = result.rows[0];
+            update = {
+                price: price ? price : update.price,
+                name: name ? name : update.name,
+                description: description ? description : update.description
+            }
+            queryText = 'UPDATE products SET price = $1, name = $2, description = $3 WHERE id = $4';
+            await client.query(queryText, [
+                update.price,
+                update.name,
+                update.description,
+                req.params.id
+            ]);
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.log(error);
+            res.status(500).send();
+            return;
+        } finally {
+            client.release();
+        }
+        res.status(200).send();
+    }
+    else {
+        res.status(400).send();
+        return;
+    }
+};
+
+/**
+ * DELETE /products/:id
+ * Deletes the product with the given id from the database.
+ * @param {Object} req 
+ * @param {Object} res 
+ * @returns undefined
+ */
+const deleteProduct = (req, res) => {
+    const id = req.params.id;
+    const queryText = 'DELETE FROM products WHERE id = $1';
+    pool.query(queryText, [id], (error, result) => {
+        if (error) {
+            console.log(error);
+            res.status(500).send();
+            return;
+        }
+        if (result.rowCount === 0) {
+            res.status(404).send();
+            return;
+        }
+        res.status(204).send();
+    });
+};
 
 /*
 /users endpoints
@@ -86,7 +266,6 @@ const loginUser = (req, res) => {
         after account creation to add additional user
         information such as name, address, email, etc.
 */
-
 /**
  * GET /users
  * Returns all users from the database as an array of objects.
@@ -370,7 +549,7 @@ const deleteCartItem = (req, res) => {
         }
         res.status(204).send();
     });
-}
+};
 
 /*
 /orders endpoints
@@ -388,6 +567,14 @@ const deleteCartItem = (req, res) => {
         updating shipping address before order is shipped, updating
         contact info for the order, etc.
 */
+/**
+ * GET /orders
+ * Sends back all of the orders in the database.
+ * Only sends the id of the order, the user who placed the order,
+ * and the date that it was placed.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
 const getOrders = (req, res) => {
     // logRequest('GET', '/orders/:username');
     pool.query(
@@ -410,6 +597,43 @@ const getOrders = (req, res) => {
             }
         }
     )
+};
+
+/**
+ * GET /orders/:username
+ * Sends back all of the orders placed by a specific user.
+ * Only sends back the id, username, and date of the order.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const getUserOrders = (req, res) => {
+
+};
+
+/**
+ * GET /orders/:username/:id
+ * Sends back a specific order that was placed by the given
+ * user with the given order id. Body will be an object 
+ * including a list of order item objects that contain
+ * product data and total price, as well as a total sum
+ * of all products in the order.
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const getOrder = (req, res) => {
+
+};
+
+/**
+ * POST /orders/:username
+ * Adds a new order to the database for the given username.
+ * The order is created based on the current contents of the 
+ * associated user's cart. 
+ * @param {Object} req 
+ * @param {Object} res 
+ */
+const addOrder = (req, res) => {
+
 }
 
 
@@ -452,5 +676,10 @@ module.exports = {
     addToCart,
     getCart,
     updateCart,
-    deleteCartItem
+    deleteCartItem,
+    addProduct,
+    getProduct,
+    getProducts,
+    updateProduct,
+    deleteProduct
 }

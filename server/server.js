@@ -63,6 +63,13 @@ app.get('/carts/:username', db.getCart);
 app.put('/carts/:username', db.updateCart);
 app.delete('/carts/:username', db.deleteCartItem);
 
+// /products
+app.post('/products', db.addProduct);
+app.get('/products', db.getProducts);
+app.get('/products/:id', db.getProduct);
+app.put('/products/:id', db.updateProduct);
+app.delete('/products/:id', db.deleteProduct);
+
 
 
 app.listen(port, () => {
