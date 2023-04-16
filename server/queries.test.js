@@ -355,3 +355,27 @@ describe('PUT /products', () => {
         expect(response.statusCode).toBe(404);
     });
 });
+
+describe('DELETE /products', () => {
+    const product = {
+        name: 'Test Product',
+        price: 4.99,
+        description: 'Sample description of a product.'
+    };
+    
+    it('should return 204', async () => {
+        const response = await request(baseURL).post('/products').send(product);
+        const id = response.body.id;
+        const deleteRequest = await request(baseURL).delete(`/products/${id}`);
+        const getRequest = await request(baseURL).get(`/products/${id}`);
+        expect(deleteRequest.statusCode).toBe(204);
+        expect(getRequest.statusCode).toBe(404);
+    });
+    it('should return 404 for a missing product', async () => {
+        let response = await request(baseURL).post('/products').send(product);
+        let id = response.body.id;
+        await request(baseURL).delete(`/products/${id}`);
+        response = await request(baseURL).delete(`/products/${id}`);
+        expect(response.statusCode).toBe(404);
+    });
+});
