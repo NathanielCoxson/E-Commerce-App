@@ -535,8 +535,24 @@ const updateCart = (req, res) => {
  */
 const deleteCartItem = (req, res) => {
     const username = req.params.username;
-    const { product_id } = req.body;
-    const queryText = "DELETE FROM cart_items WHERE username = $1 AND product_id = $2";
+    const { product_id, deleteAll } = req.body;
+    let queryText = "DELETE FROM cart_items WHERE username = $1";
+    if (deleteAll) {
+        pool.query(queryText, [username], (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            res.status(204).send();
+            return;
+        });
+    }
+    queryText = "DELETE FROM cart_items WHERE username = $1 AND product_id = $2";
     pool.query(queryText, [username, product_id], (error, result) =>{
         if (error) {
             console.log(error);

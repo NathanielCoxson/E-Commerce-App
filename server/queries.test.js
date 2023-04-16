@@ -225,6 +225,16 @@ describe('DELETE /carts', () => {
         const response = await request(baseURL).delete(`/carts/${user.username}`).send({product_id: 2});
         expect(response.statusCode).toBe(404);
     });
+    it('should delete all cart items when deleteAll is true', async () => {
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        const response = await request(baseURL).delete(`/carts/${user.username}`).send({deleteAll: true});
+        const items = await request(baseURL).get(`/carts/${user.username}`);
+        await request(baseURL).post(`/carts/${user.username}`).send(item);
+        expect(response.statusCode).toBe(204);
+        expect(items.statusCode).toBe(404);
+    });
 });
 
 // Products
