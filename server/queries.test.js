@@ -375,3 +375,232 @@ describe('DELETE /products', () => {
         expect(response.statusCode).toBe(404);
     });
 });
+
+describe('POST /orders', () => {
+    let product1 = null;
+    let product2 = null;
+    const user = {
+        username: "TestUser",
+        password: "password"
+    }
+    // Add test products, test user, and put test items in their cart.
+    beforeAll(async () => {
+        let response = await request(baseURL).post('/products').send({
+            name: "Test product",
+            price: 5.99,
+            description: "Example description"
+        });
+        product1 = response.body.id;
+        response = await request(baseURL).post('/products').send({
+            name: "Test product 2",
+            price: 2.99,
+            description: "Example description"
+        });
+        product2 = response.body.id;
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product1,
+            quantity: 2
+        });
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product2,
+            quantity: 5
+        });
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${product1}`);
+        await request(baseURL).delete(`/products/${product2}`);
+        await request(baseURL).delete(`/users/${user.username}`);
+        await request(baseURL).delete(`/orders/${user.username}`).send({deleteAll: true});
+    });
+
+    it('should return 201', async () => {
+        let response = await request(baseURL).post(`/orders/${user.username}`);
+        expect(response.statusCode).toBe(201);
+    });
+    it('should add the order to the database', async () => {
+        let response = await request(baseURL).post(`/orders/${user.username}`);
+        let orderId = response.body.orderId;
+        response = await request(baseURL).get(`/orders/${user.username}/${orderId}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.body.items.length === 2).toBe(true);
+        expect(response.body.username).toBe(user.username);
+        expect(response.body.orderId).toBe(orderId);
+    });
+});
+
+describe('GET /orders', () => {
+    let product1 = null;
+    let product2 = null;
+    let orderId = null;
+    const user = {
+        username: "TestUser",
+        password: "password"
+    }
+    // Add test products, test user, and put test items in their cart.
+    beforeAll(async () => {
+        let response = await request(baseURL).post('/products').send({
+            name: "Test product",
+            price: 5.99,
+            description: "Example description"
+        });
+        product1 = response.body.id;
+        response = await request(baseURL).post('/products').send({
+            name: "Test product 2",
+            price: 2.99,
+            description: "Example description"
+        });
+        product2 = response.body.id;
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product1,
+            quantity: 2
+        });
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product2,
+            quantity: 5
+        });
+        response = await request(baseURL).post(`/orders/${user.username}`);
+        orderId = response.body.orderId;
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${product1}`);
+        await request(baseURL).delete(`/products/${product2}`);
+        await request(baseURL).delete(`/users/${user.username}`);
+        await request(baseURL).delete(`/orders/${user.username}`).send({deleteAll: true});
+    });
+    it('should return 200 when getting all orders', async () => {
+        const response = await request(baseURL).get('/orders');
+        expect(response.statusCode).toBe(200);
+        expect(response.body.length >= 1).toBe(true);
+    });
+    it('should return 200 when getting a user\'s orders', async () => {
+        const response = await request(baseURL).get(`/orders/${user.username}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.body.length === 1).toBe(true);
+        expect(response.body[0].id).toBe(orderId);
+    });
+    it('should return 200 when getting a specific order', async () => {
+        const response = await request(baseURL).get(`/orders/${user.username}/${orderId}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.body.items.length).toBe(2);
+        expect(response.body.username).toBe(user.username);
+        expect(response.body.orderId).toBe(orderId);
+    });
+});
+
+describe('POST /orders', () => {
+    let product1 = null;
+    let product2 = null;
+    const user = {
+        username: "TestUser",
+        password: "password"
+    }
+    // Add test products, test user, and put test items in their cart.
+    beforeAll(async () => {
+        let response = await request(baseURL).post('/products').send({
+            name: "Test product",
+            price: 5.99,
+            description: "Example description"
+        });
+        product1 = response.body.id;
+        response = await request(baseURL).post('/products').send({
+            name: "Test product 2",
+            price: 2.99,
+            description: "Example description"
+        });
+        product2 = response.body.id;
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product1,
+            quantity: 2
+        });
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product2,
+            quantity: 5
+        });
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${product1}`);
+        await request(baseURL).delete(`/products/${product2}`);
+        await request(baseURL).delete(`/users/${user.username}`);
+        await request(baseURL).delete(`/orders/${user.username}`).send({deleteAll: true});
+    });
+
+    it('should return 201', async () => {
+        const response = await request(baseURL).post(`/orders/${user.username}`);
+        const order = await request(baseURL).get(`/orders/${user.username}/${response.body.orderId}`);
+        expect(response.statusCode).toBe(201);
+        expect(order.body.items.length).toBe(2);
+        expect(order.body.orderId).toBe(response.body.orderId);
+    });
+    it('should not allow an order to be empty', async () => {
+        await request(baseURL).delete(`/products/${product1}`);
+        await request(baseURL).delete(`/products/${product2}`);
+        const response = await request(baseURL).post(`/orders/${user.username}`);
+        let product = await request(baseURL).post('/products').send({
+            name: "Test product",
+            price: 5.99,
+            description: "Example description"
+        });
+        product1 = product.body.id;
+        product = await request(baseURL).post('/products').send({
+            name: "Test product 2",
+            price: 2.99,
+            description: "Example description"
+        });
+        product2 = product.body.id;
+        expect(response.statusCode).toBe(404);
+    });
+});
+
+describe('DELETE /orders', () => {
+    let product1 = null;
+    let product2 = null;
+    let orderId = null;
+    const user = {
+        username: "TestUser",
+        password: "password"
+    }
+    // Add test products, test user, and put test items in their cart.
+    beforeAll(async () => {
+        let response = await request(baseURL).post('/products').send({
+            name: "Test product",
+            price: 5.99,
+            description: "Example description"
+        });
+        product1 = response.body.id;
+        response = await request(baseURL).post('/products').send({
+            name: "Test product 2",
+            price: 2.99,
+            description: "Example description"
+        });
+        product2 = response.body.id;
+        await request(baseURL).post('/register').send(user);
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product1,
+            quantity: 2
+        });
+        await request(baseURL).post(`/carts/${user.username}`).send({
+            product_id: product2,
+            quantity: 5
+        });
+        let order = await request(baseURL).post(`/orders/${user.username}`);
+        orderId = order.body.orderId;
+    });
+    afterAll(async () => {
+        await request(baseURL).delete(`/products/${product1}`);
+        await request(baseURL).delete(`/products/${product2}`);
+        await request(baseURL).delete(`/users/${user.username}`);
+        await request(baseURL).delete(`/orders/${user.username}`).send({deleteAll: true});
+    });
+
+    it('should return 204', async () => {
+        let response = await request(baseURL).delete(`/orders/${user.username}`).send({deleteAll: true});
+        let checkIfDeleted = await request(baseURL).get(`/orders/${user.username}/${orderId}`);
+        let reorder = await request(baseURL).post(`/orders/${user.username}`);
+        orderId = reorder.body.id;
+        expect(response.statusCode).toBe(204);
+        expect(checkIfDeleted.statusCode).toBe(404);
+    });
+}); 

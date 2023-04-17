@@ -169,7 +169,8 @@ const getProducts = (req, res) => {
  */
 const updateProduct = async (req, res) => {
     const { price, name, description } = req.body;
-
+    let serverError = false;
+    let notFound = false;
     /*
         Request Conditions:
             At least one field must be provided
@@ -192,7 +193,7 @@ const updateProduct = async (req, res) => {
             const result = await client.query(queryText, [req.params.id]);
             if (result.rowCount === 0) {
                 res.status(404).send();
-                return;
+                notFound = true;
             }
             let update = result.rows[0];
             update = {
@@ -212,10 +213,11 @@ const updateProduct = async (req, res) => {
             await client.query('ROLLBACK');
             console.log(error);
             res.status(500).send();
-            return;
+            serverError = true;
         } finally {
             client.release();
         }
+        if (serverError || notFound) return;
         res.status(200).send();
     }
     else {
@@ -552,19 +554,21 @@ const deleteCartItem = (req, res) => {
             return;
         });
     }
-    queryText = "DELETE FROM cart_items WHERE username = $1 AND product_id = $2";
-    pool.query(queryText, [username, product_id], (error, result) =>{
-        if (error) {
-            console.log(error);
-            res.status(500).send();
-            return;
-        }
-        if (result.rowCount === 0) {
-            res.status(404).send();
-            return;
-        }
-        res.status(204).send();
-    });
+    else {
+        queryText = "DELETE FROM cart_items WHERE username = $1 AND product_id = $2";
+        pool.query(queryText, [username, product_id], (error, result) =>{
+            if (error) {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            res.status(204).send();
+        });
+    }
 };
 
 /*
@@ -642,22 +646,46 @@ const getUserOrders = (req, res) => {
  * @param {Object} req 
  * @param {Object} res 
  */
-const getOrder = (req, res) => {
+const getOrder = async (req, res) => {
+    let serverError = false;
+    let notFound = false;
     const username = req.params.username;
-    const id = req.params.id;
-    const queryText = "SELECT * FROM orders WHERE id = $1 AND user_username = $2";
-    pool.query(queryText, [id, username], (error, result) => {
-        if (error) {
+    const orderId = req.params.id;
+
+    let response = { username, orderId: Number(orderId) };
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        let queryText = "SELECT * FROM orders WHERE id = $1 AND user_username = $2";
+        let result = await client.query(queryText, [orderId, username]);
+        if (result.rowCount === 0) {
+            throw new Error(message = 'Not Found');
+        }
+        response.date_placed = result.rows[0].date_placed;
+        queryText = "\
+        SELECT name, price, description, quantity\
+        FROM orders_products, products\
+        WHERE orders_products.product_id = products.id AND orders_products.order_id = $1";
+        result = await client.query(queryText, [orderId]);
+        response.items = result.rows;
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        if (error.message === 'Not Found') {
+            res.status(404).send();
+            notFound = true;
+        }
+        else {
             console.log(error);
             res.status(500).send();
-            return;
+            serverError = true;
         }
-        if (result.rows.length === 0) {
-            res.status(404).send();
-            return;
-        }
-        res.status(200).send(result.rows[0]);
-    });
+        
+    } finally {
+        client.release();
+    }
+    if (serverError || notFound) return;
+    res.status(200).send(response);
 };
 
 /**
@@ -670,34 +698,41 @@ const getOrder = (req, res) => {
  * @param {Object} res 
  */
 const addOrder = async (req, res) => {
-    const client = pool.connect();
+    const client = await pool.connect();
     const username = req.params.username;
+    let orderId = null;
+    let serverError = false;
+    let notFound = false;
     try {
         await client.query('BEGIN');
         let queryText = 'SELECT * FROM cart_items WHERE username = $1';
-        let response = await client.query(queryText, [username]);
-        let cart_items = response.body;
-        console.log(cart_items);
-        
+        let result = await client.query(queryText, [username]);
+        let cart_items = result.rows;
+        if (cart_items.length === 0) {
+            res.status(404).send();
+            notFound = true;
+        }
+        queryText = "\
+            INSERT INTO orders\
+            VALUES(DEFAULT, $1, $2)\
+            RETURNING id"
+        result = await client.query(queryText, [username, getTimestamp()]);
+        orderId = result.rows[0].id;
+        queryText = 'INSERT INTO orders_products VALUES($1, $2, $3)';
+        cart_items.forEach(async item => {
+            await client.query(queryText, [orderId, item.product_id, item.quantity]);
+        });
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
         console.log(error);
         res.status(500).send();
-        return;
+        serverError = true;
     } finally {
-        await client.release();
+        client.release();
     }
-}
-
-/**
- * PUT /orders/:username
- * Updates a given user's order.
- * @param {Object} req 
- * @param {Object} res 
- */
-const updateOrder = (req, res) => {
-
+    if (serverError || notFound) return;
+    res.status(201).send({orderId});
 }
 
 /**
@@ -709,8 +744,42 @@ const updateOrder = (req, res) => {
  * @param {Object} res 
  */
 const deleteOrder = (req, res) => {
-
-}
+    const id = req.body.id;
+    const username = req.params.username;
+    const deleteAll = req.body.deleteAll;
+    if (deleteAll) {
+        let queryText = 'DELETE FROM orders WHERE user_username = $1';
+        pool.query(queryText, [username], (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            res.status(204).send();
+            return;
+        });
+    }
+    else {
+        let queryText = 'DELETE FROM orders WHERE user_username = $1 AND id = $2';
+        pool.query(queryText, [username, id], (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            res.status(204).send(); 
+            return;
+        });
+    }
+};
 
 // Helper functions
 /*
@@ -739,6 +808,19 @@ function verify(username, password, cb) {
     });
 }
 
+
+function getTimestamp() {
+    const date = new Date();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear();
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const seconds = date.getSeconds();
+    const milliseconds = date.getMilliseconds();
+    return `${year}-${month}-${day} ${hour}:${minute}:${seconds}.${milliseconds}`;
+}
+
 module.exports = {
     registerUser,
     loginUser,
@@ -756,5 +838,10 @@ module.exports = {
     getProduct,
     getProducts,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    getOrder,
+    getOrders,
+    getUserOrders,
+    addOrder,
+    deleteOrder
 }

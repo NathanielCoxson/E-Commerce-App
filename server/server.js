@@ -55,7 +55,11 @@ app.put('/users/:username', db.updateUserByUsername);
 app.delete('/users/:username', db.deleteUserByUsername);
 
 // /orders
-app.get('/orders/:username', db.getOrders);
+app.get('/orders/:username/:id', db.getOrder);
+app.get('/orders/:username', db.getUserOrders);
+app.get('/orders', db.getOrders);
+app.post('/orders/:username', db.addOrder);
+app.delete('/orders/:username', db.deleteOrder);
 
 // /carts
 app.post('/carts/:username', db.addToCart);
@@ -69,6 +73,7 @@ app.get('/products', db.getProducts);
 app.get('/products/:id', db.getProduct);
 app.put('/products/:id', db.updateProduct);
 app.delete('/products/:id', db.deleteProduct);
+
 
 
 
