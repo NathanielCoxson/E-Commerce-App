@@ -125,7 +125,7 @@ const addProduct = (req, res) => {
  */
 const getProduct = (req, res) => {
     const id = req.params.id;
-    const queryText = "SELECT name, price, description FROM products WHERE id = $1";
+    const queryText = "SELECT * FROM products WHERE id = $1";
     pool.query(queryText, [id], (error, result) => {
         if (error) {
             console.log(error);
@@ -150,7 +150,7 @@ const getProduct = (req, res) => {
 const getProducts = (req, res) => {
     // Consider limiting the number of returned objects
     // in the case that the table becomes very large.
-    const queryText = "SELECT name, price, description FROM products";
+    const queryText = "SELECT * FROM products";
     pool.query(queryText, (error, result) => {
         if (error) {
             res.status(500).send();
@@ -299,6 +299,11 @@ const getUserByUsername = (req, res) => {
         if (error) {
             console.log(error);
             res.status(500).send();
+            return;
+        }
+        if (result.rowCount === 0) {
+            res.status(404).send('User not found.');
+            return;
         }
         else {
             res.status(200).json(result.rows[0]);

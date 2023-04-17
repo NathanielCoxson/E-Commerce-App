@@ -50,7 +50,6 @@ app.post('/login',
 // /users
 app.get('/users/:username', db.getUserByUsername);
 app.get('/users', db.getUsers);
-
 app.put('/users/:username', db.updateUserByUsername);
 app.delete('/users/:username', db.deleteUserByUsername);
 
