@@ -505,33 +505,37 @@ const updateCart = (req, res) => {
     const username = req.params.username;
     const { product_id, new_quantity } = req.body;
     // Check request
-    if (
-        !product_id ||
-        !new_quantity ||
-        !Number.isInteger(product_id) || 
-        !Number.isInteger(new_quantity) ||
-        new_quantity < 0 ||
-        product_id < 0
-    ) {
-      res.status(400).send();
-      return;  
+    const conditions = [
+        !(typeof(product_id) === 'undefined'),
+        !(typeof(new_quantity) === 'undefined'),
+        Number.isInteger(product_id),
+        Number.isInteger(new_quantity),
+        new_quantity > 0,
+        product_id > 0
+    ];
+    if (conditions.every(cond => cond === true)) {
+        const queryText = "\
+        UPDATE cart_items\
+        SET quantity = $1\
+        WHERE product_id = $2 AND username = $3";
+        pool.query(queryText, [new_quantity, product_id, username], (error, result) => {
+            if (error) {
+                console.log(error);
+                res.status(500).send();
+                return;
+            }
+            if (result.rowCount === 0) {
+                res.status(404).send();
+                return;
+            }
+            res.status(200).send();
+            return;
+        });
     }
-    const queryText = "\
-    UPDATE cart_items\
-    SET quantity = $1\
-    WHERE product_id = $2 AND username = $3";
-    pool.query(queryText, [new_quantity, product_id, username], (error, result) => {
-        if (error) {
-            console.log(error);
-            res.status(500).send();
-            return;
-        }
-        if (result.rowCount === 0) {
-            res.status(404).send();
-            return;
-        }
-        res.status(200).send();
-    });
+    else {
+        res.status(400).send();
+        return; 
+    }
 }
 
 /**
@@ -542,9 +546,11 @@ const updateCart = (req, res) => {
  */
 const deleteCartItem = (req, res) => {
     const username = req.params.username;
-    const { product_id, deleteAll } = req.body;
+    //const { product_id, deleteAll } = req.body;
+    const { product_id, deleteAll } = req.query;
     let queryText = "DELETE FROM cart_items WHERE username = $1";
-    if (deleteAll) {
+
+    if (deleteAll === 'true') {
         pool.query(queryText, [username], (error, result) => {
             if (error) {
                 console.log(error);
@@ -749,9 +755,9 @@ const addOrder = async (req, res) => {
  * @param {Object} res 
  */
 const deleteOrder = (req, res) => {
-    const id = req.body.id;
+    const id = req.query.id;
     const username = req.params.username;
-    const deleteAll = req.body.deleteAll;
+    const deleteAll = req.query.deleteAll;
     if (deleteAll) {
         let queryText = 'DELETE FROM orders WHERE user_username = $1';
         pool.query(queryText, [username], (error, result) => {
