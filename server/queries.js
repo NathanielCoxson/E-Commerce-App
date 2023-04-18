@@ -14,7 +14,7 @@ const saltRounds = 10;
  * Logs a common response when a request is made to the server.
  * @param {string} type 
  * @param {string} endpoint 
- * @returns 
+ * @returns undefined
  */
 const logRequest = (type, endpoint) => console.log(`${type} ${endpoint}`);
 
@@ -499,7 +499,7 @@ const getCart = (req, res) => {
  * Updates the quantity of an item in a user's cart.
  * @param {Object} req 
  * @param {Object} res 
- * @returns 
+ * @returns undefined
  */
 const updateCart = (req, res) => {
     const username = req.params.username;
